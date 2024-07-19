@@ -17,7 +17,7 @@ def sigmoid(x):
     """
 
     ### YOUR CODE HERE
-
+    s=1/(1+np.exp(-x))
     ### END YOUR CODE
 
     return s
@@ -57,8 +57,13 @@ def naiveSoftmaxLossAndGradient(
     ### Please use the provided softmax function (imported earlier in this file)
     ### This numerically stable implementation helps you avoid issues pertaining
     ### to integer overflow. 
+    y_hat=softmax(np.dot(outsideVectors,centerWordVec))
+    loss=-np.log(y_hat[outsideWordIdx])
 
-
+    y=np.zeros_like(y_hat)
+    y[outsideWordIdx]=1
+    gradCenterVec=np.dot(y_hat-y,outsideVectors)
+    gradOutsideVecs=np.dot((y_hat-y).reshape(-1,1),centerWordVec.reshape(1,-1))
     ### END YOUR CODE
 
     return loss, gradCenterVec, gradOutsideVecs
@@ -70,6 +75,7 @@ def getNegativeSamples(outsideWordIdx, dataset, K):
     negSampleWordIndices = [None] * K
     for k in range(K):
         newidx = dataset.sampleTokenIdx()
+        #sampleTokenIdx表示一个函数，生成0到4之间的随机整数，包括0和4
         while newidx == outsideWordIdx:
             newidx = dataset.sampleTokenIdx()
         negSampleWordIndices[k] = newidx
@@ -100,15 +106,25 @@ def negSamplingLossAndGradient(
     # Negative sampling of words is done for you. Do not modify this if you
     # wish to match the autograder and receive points!
     negSampleWordIndices = getNegativeSamples(outsideWordIdx, dataset, K)
-    indices = [outsideWordIdx] + negSampleWordIndices
+    # indices = [outsideWordIdx] + negSampleWordIndices
 
     ### YOUR CODE HERE
+    u_o=outsideVectors[outsideWordIdx]
+    sigmoid_oc=sigmoid(np.dot(u_o,centerWordVec))
+    uk=outsideVectors[negSampleWordIndices]
+    loss = -np.log(sigmoid_oc)-np.sum(np.log(1-sigmoid(np.dot(uk,centerWordVec))))
 
+
+    gradCenterVec = -(1-sigmoid_oc)*u_o + np.dot(sigmoid(np.dot(uk,centerWordVec)),uk)
+    
+    gradOutsideVecs=np.zeros_like(outsideVectors)
+    gradOutsideVecs[outsideWordIdx]=(sigmoid(np.dot(u_o,centerWordVec))-1)*centerWordVec
     ### Please use your implementation of sigmoid in here.
-
-
+    for idx in negSampleWordIndices:
+        gradOutsideVecs[idx,:]+=sigmoid(np.dot(outsideVectors[idx],centerWordVec))*centerWordVec
     ### END YOUR CODE
 
+    # print("negSampling loss=",loss,np.dot(u_o,centerWordVec))
     return loss, gradCenterVec, gradOutsideVecs
 
 
@@ -142,12 +158,19 @@ def skipgram(currentCenterWord, windowSize, outsideWords, word2Ind,
     gradOutsideVectors -- the gradient with respect to the outside word vectors
                         (dJ / dU in the pdf handout)
     """
-
     loss = 0.0
     gradCenterVecs = np.zeros(centerWordVectors.shape)
     gradOutsideVectors = np.zeros(outsideVectors.shape)
 
     ### YOUR CODE HERE
+    centerWordIdx=word2Ind[currentCenterWord]
+    centerWordVec=centerWordVectors[centerWordIdx]
+    for outsideWord in outsideWords:
+        outsideWordIdx=word2Ind[outsideWord]
+        tmp_loss,tmp_gradCenterVec,tmp_gradOutsideVecs=word2vecLossAndGradient(centerWordVec,outsideWordIdx,outsideVectors,dataset)
+        loss+=tmp_loss
+        gradCenterVecs[centerWordIdx]+=tmp_gradCenterVec
+        gradOutsideVectors+=tmp_gradOutsideVecs
 
     ### END YOUR CODE
 
@@ -160,15 +183,25 @@ def skipgram(currentCenterWord, windowSize, outsideWords, word2Ind,
 def word2vec_sgd_wrapper(word2vecModel, word2Ind, wordVectors, dataset, 
                          windowSize,
                          word2vecLossAndGradient=naiveSoftmaxLossAndGradient):
+    #wordVectors.shape=(10,3)
     batchsize = 50
     loss = 0.0
     grad = np.zeros(wordVectors.shape)
     N = wordVectors.shape[0]
     centerWordVectors = wordVectors[:int(N/2),:]
     outsideVectors = wordVectors[int(N/2):,:]
+
+
     for i in range(batchsize):
         windowSize1 = random.randint(1, windowSize)
         centerWord, context = dataset.getRandomContext(windowSize1)
+
+        # print("====centerWord:",centerWord)
+        # print("====windowSize1:",windowSize1)
+        # print("====context:",context)
+        # print("====word2Ind",word2Ind)
+        # print("====centerWordVectors:",centerWordVectors)
+        # print("====outsideVectors",outsideVectors)
 
         c, gin, gout = word2vecModel(
             centerWord, windowSize1, context, word2Ind, centerWordVectors,

@@ -23,9 +23,9 @@ def load_saved_params():
     if st > 0:
         params_file = "saved_params_%d.npy" % st
         state_file = "saved_state_%d.pickle" % st
-        params = np.load(params_file)
+        params = np.load(params_file) #从一个文件中读取数据，并将其返回为一个数组或字典
         with open(state_file, "rb") as f:
-            state = pickle.load(f)
+            state = pickle.load(f) #从文件对象f中加载序列化的数据
         return st, params, state
     else:
         return st, None, None
@@ -81,12 +81,14 @@ def sgd(f, x0, step, iterations, postprocessing=None, useSaved=False,
 
     exploss = None
 
+    print(start_iter,iterations)
     for iter in range(start_iter + 1, iterations + 1):
         # You might want to print the progress every few iterations.
 
         loss = None
         ### YOUR CODE HERE
-
+        loss,gradient=f(x)
+        x = x - step*gradient
         ### END YOUR CODE
 
         x = postprocessing(x)

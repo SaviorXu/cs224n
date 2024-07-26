@@ -32,3 +32,6 @@ If you would like to instead create a new environment for this assignment, pleas
 # To deactivate an active environment, use
     
     conda deactivate
+
+## No `zip` command for Windows
+If you are using Windows, you may see an error when running the `collect_submission.sh` script. This is because the `zip` command is not available by default on Windows. If you encounter this error, you can try other methods mentioned [here](https://superuser.com/questions/201371/create-zip-folder-from-the-command-line-windows). Alternatively, you can manually zip the Python files.

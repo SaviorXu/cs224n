@@ -53,7 +53,8 @@ def train(parser, train_data, dev_data, output_path, batch_size=1024, n_epochs=1
     ###     Adam Optimizer: https://pytorch.org/docs/stable/optim.html
     ###     Cross Entropy Loss: https://pytorch.org/docs/stable/nn.html#crossentropyloss
 
-
+    optimizer = optim.Adam(parser.model.parameters(),lr=lr)
+    loss_func = nn.CrossEntropyLoss()
 
     ### END YOUR CODE
 
@@ -86,13 +87,20 @@ def train_for_epoch(parser, train_data, dev_data, optimizer, loss_func, batch_si
     parser.model.train() # Places model in "train" mode, i.e. apply dropout layer
     n_minibatches = math.ceil(len(train_data) / batch_size)
     loss_meter = AverageMeter()
-
+    
     with tqdm(total=(n_minibatches)) as prog:
         for i, (train_x, train_y) in enumerate(minibatches(train_data, batch_size)):
             optimizer.zero_grad()   # remove any baggage in the optimizer
-            loss = 0. # store loss for this batch here
+
             train_x = torch.from_numpy(train_x).long()
             train_y = torch.from_numpy(train_y.nonzero()[1]).long()
+
+            logits = parser.model(train_x)
+            
+            loss = loss_func(logits,train_y)
+            loss.backward()
+            optimizer.step()
+
 
             ### YOUR CODE HERE (~4-10 lines)
             ### TODO:

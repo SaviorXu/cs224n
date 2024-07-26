@@ -43,18 +43,23 @@ class Parser(object):
     """Contains everything needed for transition-based dependency parsing except for the model"""
 
     def __init__(self, dataset):
+        #得到的是head=0所对应的label
         root_labels = list([l for ex in dataset
                            for (h, l) in zip(ex['head'], ex['label']) if h == 0])
+        #从语料库中统计所有句子的根节点标签，并选出出现频率最高的那个。
+        #[('root',3),('a',2)]
         counter = Counter(root_labels)
         if len(counter) > 1:
             logging.info('Warning: more than one root label')
             logging.info(counter)
-        self.root_label = counter.most_common()[0][0]
+        self.root_label = counter.most_common()[0][0]#取的是出现频率最高的标签的名字
         deprel = [self.root_label] + list(set([w for ex in dataset
                                                for w in ex['label']
                                                if w != self.root_label]))
         tok2id = {L_PREFIX + l: i for (i, l) in enumerate(deprel)}
         tok2id[L_PREFIX + NULL] = self.L_NULL = len(tok2id)
+        #deprel = ['root','nsubj','obj']
+        #tok2id = {'<l>:root':0,'<l>:nsubj':1,'<l>:obj':2}
 
         config = Config()
         self.unlabeled = config.unlabeled
@@ -73,6 +78,8 @@ class Parser(object):
         self.n_trans = len(trans)
         self.tran2id = {t: i for (i, t) in enumerate(trans)}
         self.id2tran = {i: t for (i, t) in enumerate(trans)}
+        # print("=== tran2id ===")
+        # print(self.tran2id)
 
         # logging.info('Build dictionary for part-of-speech tags.')
         tok2id.update(build_dict([P_PREFIX + w for ex in dataset for w in ex['pos']],
@@ -93,6 +100,9 @@ class Parser(object):
 
         self.n_features = 18 + (18 if config.use_pos else 0) + (12 if config.use_dep else 0)
         self.n_tokens = len(tok2id)
+
+        # print("=== tok2id ===")
+        # print(self.tok2id)
 
     def vectorize(self, examples):
         vec_examples = []
@@ -169,6 +179,7 @@ class Parser(object):
         return features
 
     def get_oracle(self, stack, buf, ex):
+        #小于2执行左移操作
         if len(stack) < 2:
             return self.n_trans - 1
 
@@ -198,7 +209,7 @@ class Parser(object):
 
     def create_instances(self, examples):
         all_instances = []
-        succ = 0
+        succ = 0 #成功完成依存树构建的句子数量
         for id, ex in enumerate(examples):
             n_words = len(ex['word']) - 1
 
@@ -207,21 +218,26 @@ class Parser(object):
             buf = [i + 1 for i in range(n_words)]
             arcs = []
             instances = []
+            # print("=== create_instances buf:")
+            # print(buf)
+            #最多2n步
             for i in range(n_words * 2):
                 gold_t = self.get_oracle(stack, buf, ex)
+                print("=== gold_t ===")
+                print(gold_t)
                 if gold_t is None:
                     break
                 legal_labels = self.legal_labels(stack, buf)
                 assert legal_labels[gold_t] == 1
                 instances.append((self.extract_features(stack, buf, arcs, ex),
                                   legal_labels, gold_t))
-                if gold_t == self.n_trans - 1:
+                if gold_t == self.n_trans - 1:#gold_t=2 左移操作 可以查看trans=['L','R','S']
                     stack.append(buf[0])
                     buf = buf[1:]
-                elif gold_t < self.n_deprel:
+                elif gold_t < self.n_deprel: #gold_t=0 左弧动作
                     arcs.append((stack[-1], stack[-2], gold_t))
                     stack = stack[:-2] + [stack[-1]]
-                else:
+                else: #gold_t=1 右弧动作
                     arcs.append((stack[-2], stack[-1], gold_t - self.n_deprel))
                     stack = stack[:-1]
             else:
@@ -293,12 +309,13 @@ def read_conll(in_file, lowercase=False, max_example=None):
         word, pos, head, label = [], [], [], []
         for line in f.readlines():
             sp = line.strip().split('\t')
+            #每个句子中的每个单词为一行。每个句子之间会有空行。
             if len(sp) == 10:
                 if '-' not in sp[0]:
-                    word.append(sp[1].lower() if lowercase else sp[1])
-                    pos.append(sp[4])
-                    head.append(int(sp[6]))
-                    label.append(sp[7])
+                    word.append(sp[1].lower() if lowercase else sp[1]) #单词原始形式
+                    pos.append(sp[4]) #语言特定的词性标签
+                    head.append(int(sp[6])) #依存关系的头词
+                    label.append(sp[7])  #当前词与头词之间的依存关系类型
             elif len(word) > 0:
                 examples.append({'word': word, 'pos': pos, 'head': head, 'label': label})
                 word, pos, head, label = [], [], [], []
@@ -352,6 +369,8 @@ def load_and_preprocess_data(reduced=True):
 
     print("Loading data...",)
     start = time.time()
+    #提取数据的内容,变成字典的形式。{单词，词性标签，依存关系的头词，当前词与头词之间的依存关系}
+    #{'word':[],'pos':[],'head':[],'label':[]}
     train_set = read_conll(os.path.join(config.data_path, config.train_file),
                            lowercase=config.lowercase)
     dev_set = read_conll(os.path.join(config.data_path, config.dev_file),
@@ -359,9 +378,14 @@ def load_and_preprocess_data(reduced=True):
     test_set = read_conll(os.path.join(config.data_path, config.test_file),
                           lowercase=config.lowercase)
     if reduced:
+        # print("=== reduced ===")
+        # print(train_set[:10])
         train_set = train_set[:1000]
         dev_set = dev_set[:500]
         test_set = test_set[:500]
+        # train_set = train_set[:5]
+        # dev_set = dev_set[:2]
+        # test_set = test_set[:2]
     print("took {:.2f} seconds".format(time.time() - start))
 
     print("Building parser...",)
@@ -370,11 +394,14 @@ def load_and_preprocess_data(reduced=True):
     print("took {:.2f} seconds".format(time.time() - start))
 
     print("Loading pretrained embeddings...",)
+    #加载预训练向量
     start = time.time()
     word_vectors = {}
     for line in open(config.embedding_file).readlines():
         sp = line.strip().split()
         word_vectors[sp[0]] = [float(x) for x in sp[1:]]
+    #word_vectors感觉像是每个单词的向量形式
+    # print("=== parser.n_tokens:",parser.n_tokens)
     embeddings_matrix = np.asarray(np.random.normal(0, 0.9, (parser.n_tokens, 50)), dtype='float32')
 
     for token in parser.tok2id:
@@ -387,6 +414,7 @@ def load_and_preprocess_data(reduced=True):
 
     print("Vectorizing data...",)
     start = time.time()
+    #将单词中的单词、词性、标签从字符串变成数字索引。dev_set的长度为句子的长度
     train_set = parser.vectorize(train_set)
     dev_set = parser.vectorize(dev_set)
     test_set = parser.vectorize(test_set)
@@ -394,6 +422,7 @@ def load_and_preprocess_data(reduced=True):
 
     print("Preprocessing training data...",)
     start = time.time()
+    #创建训练样本，将每个句子的依存结构转换成一系列transition操作序列
     train_examples = parser.create_instances(train_set)
     print("took {:.2f} seconds".format(time.time() - start))
 

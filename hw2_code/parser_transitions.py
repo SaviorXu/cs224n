@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CS224N 2023-2024: Homework 2
+CS224N 2024-2025: Homework 2
 parser_transitions.py: Algorithms for completing partial parsess.
 Sahil Chopra <schopra8@stanford.edu>
 Haoshen Hong <haoshen@stanford.edu>
@@ -18,7 +18,9 @@ class PartialParse(object):
         """
         # The sentence being parsed is kept for bookkeeping purposes. Do NOT alter it in your code.
         self.sentence = sentence
-
+        self.stack=["ROOT"]
+        self.buffer=list(sentence)
+        self.dependencies = []
         ### YOUR CODE HERE (3 Lines)
         ### Your code should initialize the following fields:
         ###     self.stack: The current stack represented as a list with the top of the stack as the
@@ -51,6 +53,17 @@ class PartialParse(object):
         ###         1. Shift
         ###         2. Left Arc
         ###         3. Right Arc
+        if transition == 'S':
+            word = self.buffer.pop(0)
+            self.stack.append(word)
+        elif transition == 'LA':
+            head = self.stack[-1]
+            dependent = self.stack.pop(-2)
+            self.dependencies.append((head,dependent))
+        elif transition == 'RA':
+            head=self.stack[-2]
+            dependent=self.stack.pop(-1)
+            self.dependencies.append((head,dependent))
 
 
         ### END YOUR CODE
@@ -67,6 +80,10 @@ class PartialParse(object):
         for transition in transitions:
             self.parse_step(transition)
         return self.dependencies
+    
+    def __repr__(self):
+        ret = f"==== self.stack:{self.stack} self.buffer:{self.buffer}"
+        return ret
 
 
 def minibatch_parse(sentences, model, batch_size):
@@ -102,9 +119,20 @@ def minibatch_parse(sentences, model, batch_size):
     ###             contains references to the same objects. Thus, you should NOT use the `del` operator
     ###             to remove objects from the `unfinished_parses` list. This will free the underlying memory that
     ###             is being accessed by `partial_parses` and may cause your code to crash.
-
-
-    ### END YOUR CODE
+    partial_parses = [PartialParse(sentence) for sentence in sentences]
+    unfinished_parses = partial_parses
+    while len(unfinished_parses) > 0 :
+        partial_parse = unfinished_parses[:batch_size]
+        # print("partial_parse:",partial_parse)
+        transitions = model.predict(partial_parse)
+        # print("transitions:",transitions)
+        for idx,transition in enumerate(transitions):
+            partial_parse[idx].parse_step(transition)
+            # print(partial_parse[idx].dependencies)
+        unfinished_parses = [p for p in unfinished_parses if not(len(p.stack)==1 and len(p.buffer)==0)]
+    
+    # print("len:",len(partial_parses),"sentences len:",len(sentences))
+    dependencies = [p.dependencies for p in partial_parses]
 
     return dependencies
 

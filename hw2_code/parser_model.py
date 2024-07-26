@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CS224N 2023-2024: Homework 2
+CS224N 2024-2025: Homework 2
 parser_model.py: Feed-Forward Neural Network for Dependency Parsing
 Sahil Chopra <schopra8@stanford.edu>
 Haoshen Hong <haoshen@stanford.edu>
@@ -47,6 +47,18 @@ class ParserModel(nn.Module):
         self.embed_size = embeddings.shape[1]
         self.hidden_size = hidden_size
         self.embeddings = nn.Parameter(torch.tensor(embeddings))
+
+        self.embed_to_hidden_weight = nn.Parameter(torch.empty(self.hidden_size,n_features*self.embed_size))
+        self.embed_to_hidden_bias = nn.Parameter(torch.empty(self.hidden_size))
+        nn.init.xavier_uniform_(self.embed_to_hidden_weight)
+        nn.init.uniform_(self.embed_to_hidden_bias)
+
+        self.dropout=nn.Dropout(self.dropout_prob)
+
+        self.hidden_to_logits_weight = nn.Parameter(torch.empty(self.n_classes,self.hidden_size))
+        self.hidden_to_logits_bias = nn.Parameter(torch.empty(n_classes))
+        nn.init.xavier_uniform_(self.hidden_to_logits_weight)
+        nn.init.uniform_(self.hidden_to_logits_bias)
 
         ### YOUR CODE HERE (~9-10 Lines)
         ### TODO:
@@ -106,10 +118,9 @@ class ParserModel(nn.Module):
         ###     Gather: https://pytorch.org/docs/stable/torch.html#torch.gather
         ###     View: https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
         ###     Flatten: https://pytorch.org/docs/stable/generated/torch.flatten.html
-
-
-
-        ### END YOUR CODE
+        x = torch.index_select(self.embeddings,dim=0,index=w.flatten())
+        x=x.view(w.shape[0],w.shape[1]*self.embed_size)
+        # print(w.shape[0],x.shape)
         return x
 
 
@@ -143,8 +154,10 @@ class ParserModel(nn.Module):
         ### Please see the following docs for support:
         ###     Matrix product: https://pytorch.org/docs/stable/torch.html#torch.matmul
         ###     ReLU: https://pytorch.org/docs/stable/nn.html?highlight=relu#torch.nn.functional.relu
-
-
+        x = self.embedding_lookup(w)
+        h = F.relu(x.matmul(self.embed_to_hidden_weight.t())+self.embed_to_hidden_bias)
+        h = self.dropout(h)
+        logits = h.matmul(self.hidden_to_logits_weight.t())+self.hidden_to_logits_bias
         ### END YOUR CODE
         return logits
 
@@ -160,7 +173,9 @@ if __name__ == "__main__":
     model = ParserModel(embeddings)
 
     def check_embedding():
+        #产生一个形状为(4,36)的张量，里面的元素是[0,100)中随机采样的整数
         inds = torch.randint(0, 100, (4, 36), dtype=torch.long)
+        # print(inds)
         selected = model.embedding_lookup(inds)
         assert np.all(selected.data.numpy() == 0), "The result of embedding lookup: " \
                                       + repr(selected) + " contains non-zero elements."

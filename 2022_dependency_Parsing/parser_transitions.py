@@ -8,6 +8,7 @@ Haoshen Hong <haoshen@stanford.edu>
 """
 
 import sys
+import copy
 
 class PartialParse(object):
     def __init__(self, sentence):
@@ -35,6 +36,9 @@ class PartialParse(object):
 
 
         ### END YOUR CODE
+        self.stack=["ROOT"]
+        self.buffer=copy.deepcopy(sentence)
+        self.dependencies=[]
 
 
     def parse_step(self, transition):
@@ -51,8 +55,18 @@ class PartialParse(object):
         ###         1. Shift
         ###         2. Left Arc
         ###         3. Right Arc
-
-
+        if transition == 'S':
+            self.stack.append(self.buffer.pop(0))
+        elif transition == 'LA':
+            head=self.stack.pop()
+            dependent=self.stack.pop()
+            self.dependencies.append((head,dependent))
+            self.stack.append(head)
+        elif transition == 'RA':
+            dependent=self.stack.pop()
+            head=self.stack.pop()
+            self.dependencies.append((head,dependent))
+            self.stack.append(head)
         ### END YOUR CODE
 
     def parse(self, transitions):

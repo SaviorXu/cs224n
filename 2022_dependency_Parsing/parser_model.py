@@ -48,6 +48,14 @@ class ParserModel(nn.Module):
         self.hidden_size = hidden_size
         self.embeddings = nn.Parameter(torch.tensor(embeddings))
 
+        self.embed_to_hidden_weight = nn.Parameter(torch.empty(embeddings.shape[0],self.embed_size))
+        self.embed_to_hidden_bias = nn.Parameter()
+        nn.init.xavier_uniform_(self.embed_to_hidden_weight)
+        nn.init.uniform_(self.embed_to_hidden_bias)
+        self.hidden_to_logits_weight = nn.Parameter()
+        self.hidden_to_logits_bias = nn.Parameter()
+        nn.init.xavier_uniform_(self.hidden_to_logits_weight)
+        nn.init.uniform_(self.hidden_to_logits_bias)
         ### YOUR CODE HERE (~9-10 Lines)
         ### TODO:
         ###     1) Declare `self.embed_to_hidden_weight` and `self.embed_to_hidden_bias` as `nn.Parameter`.
@@ -84,6 +92,7 @@ class ParserModel(nn.Module):
 
             @return x (Tensor): tensor of embeddings for words represented in w
                                 (batch_size, n_features * embed_size)
+            将输入的词索引张量w映射成对应的词向量，并将这些词向量按特征维拼接展开为一个扁平的特征表示。
         """
 
         ### YOUR CODE HERE (~1-4 Lines)
@@ -106,6 +115,8 @@ class ParserModel(nn.Module):
         ###     Gather: https://pytorch.org/docs/stable/torch.html#torch.gather
         ###     View: https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
         ###     Flatten: https://pytorch.org/docs/stable/generated/torch.flatten.html
+        word = torch.index_select(self.embeddings,dim=0,index=w)
+        print(word)
 
 
 
@@ -160,7 +171,9 @@ if __name__ == "__main__":
     model = ParserModel(embeddings)
 
     def check_embedding():
+        #生成一个形状为(4,36)的张量，里面的元素是[0,100)
         inds = torch.randint(0, 100, (4, 36), dtype=torch.long)
+        print(inds)
         selected = model.embedding_lookup(inds)
         assert np.all(selected.data.numpy() == 0), "The result of embedding lookup: " \
                                       + repr(selected) + " contains non-zero elements."

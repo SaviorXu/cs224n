@@ -1,0 +1,26 @@
+================================================================================
+INITIALIZING
+================================================================================
+Loading data...
+took 4.49 seconds
+Building parser...
+took 0.06 seconds
+Loading pretrained embeddings...
+took 3.34 seconds
+Vectorizing data...
+took 0.06 seconds
+Preprocessing training data...
+took 1.84 seconds
+took 0.13 seconds
+
+================================================================================
+TRAINING
+================================================================================
+Epoch 1 out of 10
+Traceback (most recent call last):
+  File "/root/cs224n/2025/word2vec_DependencyParse_code/run.py", line 149, in <module>
+    train(parser, train_data, dev_data, output_path, batch_size=1024, n_epochs=10, lr=0.0005)
+  File "/root/cs224n/2025/word2vec_DependencyParse_code/run.py", line 62, in train
+    dev_UAS = train_for_epoch(parser, train_data, dev_data, optimizer, loss_func, batch_size)
+                                                            ^^^^^^^^^
+NameError: name 'optimizer' is not defined

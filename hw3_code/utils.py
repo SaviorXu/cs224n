@@ -87,6 +87,7 @@ def batch_iter(data, batch_size, shuffle=False):
     @param batch_size (int): batch size
     @param shuffle (boolean): whether to randomly shuffle the dataset
     """
+    #batch_size表示每一批有几个样本(batch_size中的样本是并行执行的，通过张量并行计算)，batch_num表示总共有多少个batch。
     batch_num = math.ceil(len(data) / batch_size)
     index_array = list(range(len(data)))
 

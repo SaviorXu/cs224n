@@ -43,15 +43,17 @@ class NMT(nn.Module):
         self.vocab = vocab
 
         # default values
-        self.post_embed_cnn = None
-        self.encoder = None
-        self.decoder = None
-        self.h_projection = None
-        self.c_projection = None
-        self.att_projection = None
-        self.combined_output_projection = None
-        self.target_vocab_projection = None
-        self.dropout = None
+        self.post_embed_cnn = nn.Conv1d(in_channels=embed_size,out_channels=embed_size,kernel_size=2,padding='same')
+        #第一个参数表示输入中的预计特征数量，第二个参数表示隐藏状态h中的特征数量
+        self.encoder = nn.LSTM(embed_size,hidden_size,bias='True',bidirectional='True')
+        #
+        self.decoder = nn.LSTMCell()
+        self.h_projection = nn.Linear()
+        self.c_projection = nn.Linear()
+        self.att_projection = nn.Linear()
+        self.combined_output_projection = nn.Linear()
+        self.target_vocab_projection = nn.Linear()
+        self.dropout = nn.Dropout()
         # For sanity check only, not relevant to implementation
         self.gen_sanity_check = False
         self.counter = 0
@@ -80,7 +82,6 @@ class NMT(nn.Module):
         ###         https://pytorch.org/docs/stable/generated/torch.nn.Linear.html
         ###     Dropout Layer:
         ###         https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html
-
 
 
         ### END YOUR CODE

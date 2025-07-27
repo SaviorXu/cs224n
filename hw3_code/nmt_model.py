@@ -43,17 +43,16 @@ class NMT(nn.Module):
         self.vocab = vocab
 
         # default values
-        self.post_embed_cnn = nn.Conv1d(in_channels=embed_size,out_channels=embed_size,kernel_size=2,padding='same')
+        self.post_embed_cnn = nn.Conv1d(in_channels=embed_size,out_channels=hidden_size,kernel_size=2,padding='same')
         #第一个参数表示输入中的预计特征数量，第二个参数表示隐藏状态h中的特征数量
-        self.encoder = nn.LSTM(embed_size,hidden_size,bias='True',bidirectional='True')
-        #
-        self.decoder = nn.LSTMCell()
-        self.h_projection = nn.Linear()
-        self.c_projection = nn.Linear()
-        self.att_projection = nn.Linear()
-        self.combined_output_projection = nn.Linear()
-        self.target_vocab_projection = nn.Linear()
-        self.dropout = nn.Dropout()
+        self.encoder = nn.LSTM(hidden_size,hidden_size,bias=True,bidirectional=True)
+        self.decoder = nn.LSTMCell(embed_size+hidden_size,hidden_size,bias=True)
+        self.h_projection = nn.Linear(2*hidden_size,hidden_size,bias=False)
+        self.c_projection = nn.Linear(2*hidden_size,hidden_size,bias=False)
+        self.att_projection = nn.Linear(2*hidden_size,hidden_size,bias=False)
+        self.combined_output_projection = nn.Linear(3*hidden_size,hidden_size,bias=False)
+        self.target_vocab_projection = nn.Linear(hidden_size,1,bias=False)
+        self.dropout = nn.Dropout(p=dropout_rate)
         # For sanity check only, not relevant to implementation
         self.gen_sanity_check = False
         self.counter = 0
@@ -177,11 +176,22 @@ class NMT(nn.Module):
         ###     Tensor Permute:
         ###         https://pytorch.org/docs/stable/generated/torch.permute.html
 
-
-
-
-
-
+        #source_padded是用于批处理输入序列时的关键变量，对不同长度的输入句子进行对齐处理，使他们在张量表示上具有统一的长度。
+        #model_embeeding会调用forward函数，输入是对应的词id，输出是对应的词向量。
+        #得到的维度是(batch_size，src_len，embed_size)
+        X = self.model_embeddings(source_padded)
+        #nn.Conv1d的输入是一个3D的Tensor(batch_size,in_channels,sequence_len)其中in_channels表示每个时间步的输入通道数（嵌入维度）。
+        X = X.permute(0,2,1)
+        X = self.post_embed_cnn(X)
+        X = X.permute(0,2,1)
+        #为了更高效的进行batch处理，需要对样本序列进行填充，保证各个样本长度相同，使用pad_sequence对序列进行填充。
+        #填充之后的样本序列，虽然长度相同，但是序列里面可能填充了很多无效值0。采用pack_padded_sequence进行压缩，压缩掉无效的填充值。
+        X = pack_padded_sequence(X,len(source_lengths),True)
+        enc_hiddens,(enc_hidden,enc_cell) = self.encoder(X)
+        enc_hiddens=pad_packed_sequence(enc_hiddens,len(source_lengths),True)
+        self.h_projection(torch.cat((enc_hidden[0],enc_hidden[1]),dim=1))
+        self.c_projection(torch.cat((enc_cell[0],enc_cell[1]),dim=1))
+        dec_init_state=(self.h_projection,self.c_projection)
 
         ### END YOUR CODE
 
@@ -290,6 +300,8 @@ class NMT(nn.Module):
         """
 
         combined_output = None
+        dec_state = self.decoder(Ybar_t,dec_state)
+        dec_hidden,dec_cell = dec_state
 
         ### YOUR CODE HERE (~3 Lines)
         ### TODO:

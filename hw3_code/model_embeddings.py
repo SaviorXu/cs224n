@@ -47,6 +47,8 @@ class ModelEmbeddings(nn.Module):
         ### Use the following docs to properly initialize these variables:
         ###     Embedding Layer:
         ###         https://pytorch.org/docs/stable/generated/torch.nn.Embedding.html
+        
+        #nn.Embedding是一个存储固定大小的词典的嵌入向量的查找表。给定一个编号，嵌入层能够返回该编号对应的嵌入向量。
         self.source = nn.Embedding(len(vocab.src),self.embed_size,src_pad_token_idx)
         self.target = nn.Embedding(len(vocab.tgt),self.embed_size,tgt_pad_token_idx)
 

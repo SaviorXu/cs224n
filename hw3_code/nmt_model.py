@@ -43,6 +43,7 @@ class NMT(nn.Module):
         self.vocab = vocab
 
         # default values
+        #一维卷积，其中in_channels为embed_size。
         self.post_embed_cnn = nn.Conv1d(in_channels=embed_size,out_channels=hidden_size,kernel_size=2,padding='same')
         #第一个参数表示输入中的预计特征数量，第二个参数表示隐藏状态h中的特征数量
         self.encoder = nn.LSTM(hidden_size,hidden_size,bias=True,bidirectional=True)
@@ -51,7 +52,7 @@ class NMT(nn.Module):
         self.c_projection = nn.Linear(2*hidden_size,hidden_size,bias=False)
         self.att_projection = nn.Linear(2*hidden_size,hidden_size,bias=False)
         self.combined_output_projection = nn.Linear(3*hidden_size,hidden_size,bias=False)
-        self.target_vocab_projection = nn.Linear(hidden_size,1,bias=False)
+        self.target_vocab_projection = nn.Linear(hidden_size,len(self.vocab.tgt),bias=False)
         self.dropout = nn.Dropout(p=dropout_rate)
         # For sanity check only, not relevant to implementation
         self.gen_sanity_check = False
@@ -262,11 +263,16 @@ class NMT(nn.Module):
         ###         https://pytorch.org/docs/stable/generated/torch.cat.html
         ###     Tensor Stacking:
         ###         https://pytorch.org/docs/stable/generated/torch.stack.html
-
-
-
-
-
+        enc_hiddens_proj = self.att_projection(enc_hiddens) #相当于注意力机制的计算，使用WattProj和henc
+        Y = self.model_embeddings.target(Y)
+        for Y_t in torch.split(Y,1):
+            Y_t = torch.squeeze(Y_t,dim=0)
+            Ybar_t = torch.cat((Y_t,o_prev),dim=-1)
+            dec_state,combined_output,e_t=self.step(Ybar_t,dec_state,enc_hiddens,enc_hiddens_proj,enc_masks)
+            combined_outputs.append(combined_output)
+            o_prev = combined_output
+        
+        combined_outputs = torch.stack(combined_outputs,dim=0)
 
         ### END YOUR CODE
 
@@ -299,9 +305,12 @@ class NMT(nn.Module):
                                       your implementation.
         """
 
-        combined_output = None
         dec_state = self.decoder(Ybar_t,dec_state)
         dec_hidden,dec_cell = dec_state
+        #dec_hidden为(b,h),enc_hiddens_proj为(b,src_len,h)，将dec_hidden扩展为(b,1,h)
+        torch.unsqueeze(dec_hidden,1)
+        e_t = torch.bmm(torch.unsqueeze(dec_hidden,1),enc_hiddens_proj.transpose(1,2))
+        e_t = torch.squeeze(e_t,1)
 
         ### YOUR CODE HERE (~3 Lines)
         ### TODO:
@@ -359,6 +368,12 @@ class NMT(nn.Module):
         ###         https://pytorch.org/docs/stable/generated/torch.cat.html
         ###     Tanh:
         ###         https://pytorch.org/docs/stable/generated/torch.tanh.html
+        alpha_t = nn.functional.softmax(e_t)
+        a_t = torch.bmm(torch.unsqueeze(alpha_t,1),enc_hiddens)
+        a_t = torch.squeeze(a_t,1)
+        U_t = torch.cat((a_t,dec_hidden),dim=1)
+        V_t = self.combined_output_projection(U_t)
+        O_t = self.dropout(torch.tanh(V_t))
 
 
         ### END YOUR CODE
